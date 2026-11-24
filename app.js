@@ -489,8 +489,8 @@ function renderWbgt() {
   const fold = (k, title, html) => `<details data-k="${k}"${open.has(k) ? " open" : ""}><summary>${esc(title)}</summary>${html}</details>`;
   // Reading beside the temperature: this hour only, coloured by the top of the range.
   const chip = $("#nowHeat");
-  chip.hidden = !cur;
-  if (cur) {
+  if (chip) chip.hidden = !cur; // an older cached page may not have it
+  if (chip && cur) {
     const i = C.wbgt.bands.findIndex(x => Math.round(cur.hi) < x[1]), band = wbgtBand(cur);
     chip.className = "now-heat h" + i;
     chip.setAttribute("aria-label", `Heat stress this hour, estimated WBGT ${wbgtRange(cur)}C, risk for the general public ${band}. Show guidance.`);
@@ -1038,7 +1038,7 @@ $("#saveSettings").addEventListener("click", () => {
   store.set("settings", S.settings); closeSheets(); refresh();
 });
 $("#refreshBtn").addEventListener("click", () => refresh());
-$("#nowHeat").addEventListener("click", () => $("#wbgtCard").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
+$("#nowHeat")?.addEventListener("click", () => $("#wbgtCard").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
 $("#gpsBtn").addEventListener("click", () => useGPS(false));
 $("#searchInput").addEventListener("input", e => { clearTimeout(searchTimer); searchTimer = setTimeout(() => search(e.target.value), 300); });
 $("#searchForm").addEventListener("submit", e => { e.preventDefault(); search($("#searchInput").value); });
