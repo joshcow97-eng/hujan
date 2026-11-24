@@ -18,7 +18,8 @@ Allow location when asked, or search a place.
 |---|---|---|
 | Headline forecast | ECMWF IFS 9 km via Open-Meteo | Gaps (e.g. UV) filled from Open-Meteo's best match |
 | Model comparison | ECMWF AIFS, NOAA GFS, UK Met Office, DWD ICON, CMA GRAPES | Each fetched separately |
-| Rain chance, confidence | ECMWF ensemble (51 runs) | Rain = ≥0.5 mm per 3 h; heavy = ≥10 mm per 3 h |
+| Rain chance, confidence | ECMWF ensemble (51 runs) | Hourly: ≥0.5 mm per 3 h (heavy: ≥10 mm). Daily: ≥5 mm, with today counting only hours still to come |
+| Heat stress (WBGT) | Calculated from five models' temperature, humidity, wind and sunshine (Liljegren et al. 2008) | Estimate shown as a range, not measured; Singapore's bands; no alerts |
 | Radar | LibreWXR (MET Malaysia radars, zoom 12, 60-min nowcast); RainViewer as fallback | Radar trace at your location read from LibreWXR tiles |
 | Warnings, official forecast | MET Malaysia via api.data.gov.my | Cached to respect the 4-requests-a-minute limit |
 | Air quality | Copernicus CAMS via Open-Meteo; optional WAQI token for DOE station data in US AQI | Official DOE API needs a proxy (not included) |

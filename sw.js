@@ -1,7 +1,7 @@
 /* Hujan service worker: keeps the app shell available offline.
    Weather data is never cached here; the app keeps its own last forecast. */
-const VERSION = "hujan-v1";
-const SHELL = ["./", "index.html", "styles.css", "config.js", "app.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png",
+const VERSION = "hujan-v2";
+const SHELL = ["./", "index.html", "styles.css", "config.js", "wbgt.js", "app.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"];
 

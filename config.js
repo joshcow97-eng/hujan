@@ -45,7 +45,38 @@ window.HUJAN_CONFIG = {
   /* Rain thresholds. Models rain too lightly and too often in the tropics, so "rain" uses a higher cut-off. */
   rainBlockMm: 0.5,   // per 3 hours, per ensemble run
   heavyBlockMm: 10,   // per 3 hours
-  rainDayMm: 1,       // per day
+  rainDayMm: 5,       // per day; the model reaches 1 mm on most days here, so 1 mm says little
+
+  /* Estimated WBGT. Bands are Singapore's (Low below 31, Moderate 31 to below 33, High 33+), read from data.gov.sg's labelled readings.
+     AIFS is left out because its 6-hourly steps can't time the sun. windFactor 1 = 10 m wind as forecast; reducing it to 2 m ran hotter against
+     Singapore's measurements (Nov 2026, 30 stations, 10 days: mean error 1.5 °C and 1.0 °C too hot by day with factor 1). */
+  wbgt: {
+    models: ["ecmwf_ifs", "gfs_seamless", "ukmo_global_deterministic_10km", "icon_global", "cma_grapes_global"],
+    minModels: 3, windFactor: 1, bands: [["Low", 31], ["Moderate", 33], ["High", Infinity]],
+    /* Guidance is paraphrased from the sources listed, read 2026-11-24. Check them before changing any wording. */
+    guide: {
+      levels: [
+        { name: "Low", range: "below 31°", risk: "Lower risk for most people, but heat illness is still possible, especially with hard effort or if you're in a higher-risk group.", act: ["Carry on as normal", "Drink as usual"] },
+        { name: "Moderate", range: "31° to below 33°", risk: "Higher risk of heat cramps, heat exhaustion and heat stroke.", act: ["Cut back on time outdoors", "Rest regularly in shade or indoors", "Drink more", "Watch for the warning signs below", "Skip extra layers; use a hat or umbrella"] },
+        { name: "High", range: "33° or more", risk: "Highest band. The same illnesses are more likely.", act: ["Keep outdoor activity to a minimum and stay in shade where you can", "Take longer or more frequent breaks", "Drink more and watch for the warning signs below", "Cool down in breaks, such as water on arms and legs", "Wear thin, light-coloured clothing with a hat or umbrella"] }
+      ],
+      groups: ["Older people", "Babies and children", "Pregnant women", "Anyone ill, recently recovered or with a long-term condition", "People newly arrived from a cooler climate", "Outdoor workers and people exercising in the heat"],
+      early: ["Headache", "Tiredness", "Trouble concentrating", "Dizziness", "Muscle weakness or cramps", "Nausea"],
+      urgent: "Confusion, slurred speech, fainting or a seizure",
+      firstAid: ["Heat stroke: call 999, stay with the person, move them to a cool shaded place, remove outer clothing, and cool them fast with cold water, ice or wet cloths and moving air", "Heat exhaustion: move out of the heat, remove extra clothing, cool the head, face and neck, take frequent sips of cool water, and get medical care"],
+      habits: ["Avoid the 11am to 4pm peak", "Limit strenuous activity", "Never leave children in a parked vehicle"],
+      work: ["From 32°: at least 10 minutes' rest every hour for heavy physical work", "From 33°: at least 15 minutes every hour, longer as WBGT rises", "Give people new to the heat at least 7 days to build up"],
+      workNote: "Singapore's Ministry of Manpower measures, for employers there. Malaysia's 2016 DOSH guideline is the local reference; its limits couldn't be read, so they aren't shown.",
+      sources: [
+        ["Levels and higher-risk groups: NEA Singapore, Jan 2026", "https://www.weather.gov.sg/wp-content/uploads/2026/04/Manage-HeatStress-Eng-2026.pdf"],
+        ["Outdoor work: MOM Singapore", "https://www.mom.gov.sg/heat-stress-measures-for-outdoor-work"],
+        ["Early signs and daily advice: Malaysia's Ministry of Health, via Malay Mail, 25 Mar 2026", "https://www.malaymail.com/news/malaysia/2026/03/25/moh-tells-public-to-take-precautions-as-malaysia-records-more-heatrelated-illnesses-amid-prolonged-hot-weather/213801"],
+        ["Urgent signs and first aid: NIOSH (US)", "https://www.cdc.gov/niosh/heat-stress/about/illnesses.html"],
+        ["Outdoor workers and parked vehicles: WHO", "https://www.who.int/news-room/fact-sheets/detail/climate-change-heat-and-health"],
+        ["Emergency number: MERS 999", "https://999.gov.my/"]
+      ]
+    }
+  },
 
   about: [
     { title: "Headline: ECMWF IFS (9 km)", text: "The highest-resolution global model with hourly steps, updated every 6 hours. ECMWF's own 2025 verification gives it the smallest tropical wind error of any centre. It's a physics model, so it keeps the intensity of heavy showers that AI models tend to flatten. No published study ranks global models for Malaysia specifically, so this choice is a judgement from the general evidence (medium confidence)." },

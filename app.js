@@ -111,7 +111,7 @@ async function loadModels(lat, lon) {
   // One request per model, so a renamed or failing model doesn't break the others.
   const res = await Promise.allSettled(C.models.map(m => tryModel(m, n => C.endpoints.forecast + "?" + qs({
     latitude: lat, longitude: lon, timezone: C.tz, forecast_days: 7, models: n,
-    hourly: "temperature_2m,precipitation,relative_humidity_2m", daily: "precipitation_sum,temperature_2m_max,temperature_2m_min"
+    hourly: "temperature_2m,precipitation,relative_humidity_2m,wind_speed_10m,surface_pressure,shortwave_radiation,direct_radiation", daily: "precipitation_sum,temperature_2m_max,temperature_2m_min"
   }))));
   const out = {};
   C.models.forEach((m, i) => { if (res[i].status === "fulfilled") out[m.id] = res[i].value; });
@@ -192,8 +192,13 @@ function ensembleStats(ens) {
   for (const b of blocks) for (const k of b.keys) byHour[k] = b;
   const byDay = {};
   time.forEach((t, i) => { const d = t.slice(0, 10); (byDay[d] ||= pK.map(() => 0)); pK.forEach((k, m) => byDay[d][m] += h[k][i] || 0); });
+  // Rain still to come today, per run. Each hourly value covers the hour ending at its timestamp.
+  const now = Date.now(), dayOf = ms => new Date(ms).toLocaleDateString("en-CA", { timeZone: C.tz }), today = dayOf(now);
+  const restIdx = time.map((t, i) => { const e = parseLocal(t).getTime(); return e > now && dayOf(e - 36e5) === today ? i : -1; }).filter(i => i >= 0);
+  const rest = pK.map(k => restIdx.reduce((s, i) => s + (h[k][i] || 0), 0));
   const daily = {};
   for (const [d, arr] of Object.entries(byDay)) daily[d] = { p10: pct(arr, .1), p50: pct(arr, .5), p90: pct(arr, .9), spread: pct(arr, .9) - pct(arr, .1), prob: arr.filter(v => v >= C.rainDayMm).length / arr.length };
+  if (daily[today] && rest.length && restIdx.length) daily[today].probRest = rest.filter(v => v >= C.rainDayMm).length / rest.length;
   return { blocks, byHour, daily, members: pK.length };
 }
 
@@ -306,6 +311,13 @@ function summarise(D, pts) {
   }
   return "No rain expected in the next 12 hours.";
 }
+// Daily rain chance with a label that says what it counts. Without ensemble data, Open-Meteo's any-rain figure is used and named as such.
+function dayRain(D, i) {
+  const e = S.data.ens?.daily?.[D.daily.time[i]];
+  if (e?.probRest != null) return { v: e.probRest * 100, label: `${C.rainDayMm} mm+ rest of today` };
+  if (e?.prob != null) return { v: e.prob * 100, label: `Chance of ${C.rainDayMm} mm+` };
+  return { v: D.daily.precipitation_probability_max?.[i] ?? null, label: "Chance of any rain" };
+}
 function daySummary(D, i, ens) {
   const d = D.daily, H = D.hourly;
   const dayKey = d.time[i];
@@ -362,7 +374,7 @@ function renderNow(D) {
     [r0(c.wind_gusts_10m), "Gusts km/h"],
     [r0(uvNow) + " " + uvName(uvNow), "UV now"],
     [r0(c.pressure_msl), "Pressure hPa"],
-    [(() => { const e = S.data.ens?.daily?.[d.time[di]]; const v = e?.prob != null ? e.prob * 100 : d.precipitation_probability_max?.[di]; return v != null ? r0(v) + "%" : "–"; })(), "Rain chance today"],
+    (({ v, label }) => [v != null ? r0(v) + "%" : "–", label])(dayRain(D, di)),
     [r1(d.precipitation_sum?.[di]) + " mm", "Rain today"]
   ];
   $("#nowGrid").innerHTML = cells.map(([b, s]) => `<div><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join("");
@@ -412,6 +424,7 @@ function renderNext(D) {
 const HOUR_METRICS = {
   temp: { name: "Temp", get: (H, i) => H.temperature_2m[i], fmt: v => r0(v) + "°", color: v => tempColor(v), scale: "range" },
   feels: { name: "Feels like", get: (H, i) => H.apparent_temperature[i], fmt: v => r0(v) + "°", color: v => tempColor(v), scale: "range" },
+  wbgt: { name: "WBGT (est.)", get: (H, i) => S.data.wbgt?.byHour?.[H.time[i]]?.mid, fmt: (v, H, i) => wbgtRange(S.data.wbgt.byHour[H.time[i]]), color: v => v >= 33 ? "#ff5a5a" : v >= 31 ? "#ff8a4c" : "#3ccf8e", scale: [22, 36] },
   prob: { name: "Rain chance", get: (H, i) => { const b = S.data.ens?.byHour?.[H.time[i]]; return b?.prob != null ? b.prob * 100 : H.precipitation_probability?.[i]; }, fmt: v => r0(v) + "%", color: () => "#4aa3ff", scale: [0, 100] },
   rain: { name: "Rain mm", get: (H, i) => H.precipitation[i], fmt: v => r1(v), color: () => "#4aa3ff", scale: [0, 10] },
   storm: { name: "Storm risk", get: (H, i) => H.cape?.[i], fmt: (v, H, i) => stormRisk(H.weather_code[i], v, H.precipitation_probability?.[i]).name, color: () => "#9c7cff", scale: [0, 3000] },
@@ -428,6 +441,58 @@ function tempColor(v) {
   const t = clamp((v - 22) / 12, 0, 1);
   const a = [111, 183, 255], b = [255, 138, 76];
   return `rgb(${a.map((c, i) => Math.round(c + (b[i] - c) * t)).join(",")})`;
+}
+/* ---------- Estimated WBGT: range across models ---------- */
+function wbgtStats(models, loc) {
+  if (!models || !window.HUJAN_WBGT) return null;
+  const W = C.wbgt, per = {};
+  for (const id of W.models) if (models[id]?.hourly) {
+    per[id] = new Map(window.HUJAN_WBGT.series(models[id].hourly, loc.lat, loc.lon, parseLocal, W.windFactor).filter(p => p.v != null).map(p => [p.t, p.v]));
+  }
+  const times = [...new Set(Object.values(per).flatMap(m => [...m.keys()]))].sort();
+  const byHour = {};
+  for (const t of times) {
+    const v = Object.values(per).map(m => m.get(t)).filter(x => x != null);
+    if (v.length >= W.minModels) byHour[t] = { lo: Math.min(...v), hi: Math.max(...v), mid: pct(v, .5), n: v.length };
+  }
+  // Highest hour of a day, over the same hours in every model (7am to 7pm; today: from the current hour).
+  const peak = (day, from = 0) => {
+    const hrs = []; for (let h = 7; h < 19; h++) { const t = day + "T" + String(h).padStart(2, "0") + ":00"; if (parseLocal(t).getTime() + 36e5 > from) hrs.push(t); }
+    if (!hrs.length) return null;
+    const pk = Object.values(per).filter(m => hrs.every(t => m.has(t))).map(m => Math.max(...hrs.map(t => m.get(t))));
+    return pk.length >= W.minModels ? { lo: Math.min(...pk), hi: Math.max(...pk), n: pk.length } : null;
+  };
+  return { byHour, peak };
+}
+const wbgtRange = r => r == null ? "–" : r0(r.lo) === r0(r.hi) ? r0(r.lo) + "°" : r0(r.lo) + "–" + r0(r.hi) + "°";
+// Band from the rounded ends shown, so the label always matches the numbers on screen.
+const wbgtBand = r => { const b = v => C.wbgt.bands.find(x => Math.round(v) < x[1])[0], a = b(r.lo), z = b(r.hi); return a === z ? a : a + " to " + z; };
+function renderWbgt() {
+  const box = $("#wbgtCard"), E = S.data.wbgt, G = C.wbgt.guide;
+  const now = Date.now(), dayOf = ms => new Date(ms).toLocaleDateString("en-CA", { timeZone: C.tz });
+  const nowKey = E && Object.keys(E.byHour).find(t => parseLocal(t).getTime() <= now && parseLocal(t).getTime() + 36e5 > now);
+  const cur = nowKey && E.byHour[nowKey];
+  const rest = E && E.peak(dayOf(now), now), tmr = E && E.peak(dayOf(now + 864e5));
+  const any = cur || rest || tmr;
+  const cell = (r, label) => `<div><b>${esc(wbgtRange(r))}</b><span>${esc(label)}${r ? `<br>${esc(wbgtBand(r))}` : ""}</span></div>`;
+  // Guidance follows the top of the range, so it errs towards caution.
+  const upper = [cur, rest].filter(Boolean).sort((a, b) => b.hi - a.hi)[0];
+  const lv = upper && G.levels[C.wbgt.bands.findIndex(x => Math.round(upper.hi) < x[1])];
+  const list = a => `<ul>${a.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
+  const open = new Set($$("details[open]", box).map(d => d.dataset.k));
+  const fold = (k, title, html) => `<details data-k="${k}"${open.has(k) ? " open" : ""}><summary>${esc(title)}</summary>${html}</details>`;
+  box.hidden = false;
+  box.innerHTML = `<div class="card-head"><h2>Heat stress (WBGT)</h2><span class="tag">Estimate</span></div>
+    ${any ? `<div class="kv">${cell(cur, "This hour")}${cell(rest, "Peak, rest of today")}${cell(tmr, "Peak tomorrow")}</div>` : `<p class="sub">The estimate isn't available right now. The guidance below still applies.</p>`}
+    <h3 class="guide-h">Risks and guidelines</h3>
+    ${lv ? `<p class="guide-now"><b>Rest of today, top of the range: ${esc(lv.name)}</b><br>${esc(lv.risk)}</p>${list(lv.act)}` : ""}
+    <p class="guide-urgent"><b>${esc(G.urgent)}</b> can mean heat stroke. Call <b>999</b> and cool the person while you wait.</p>
+    ${fold("levels", "What to do at each level", G.levels.map(l => `<p><b>${esc(l.name)}, ${esc(l.range)}</b><br>${esc(l.risk)}</p>${list(l.act)}`).join(""))}
+    ${fold("groups", "Who is at higher risk", list(G.groups))}
+    ${fold("signs", "Warning signs and first aid", `<p><b>Early signs</b></p>${list(G.early)}<p><b>Urgent: call 999</b></p>${list([G.urgent])}<p><b>First aid</b></p>${list(G.firstAid)}`)}
+    ${fold("habits", "Everyday precautions", list(G.habits))}
+    ${fold("work", "Heavy outdoor work", list(G.work) + `<p>${esc(G.workNote)}</p>`)}
+    ${fold("about", "About this estimate and sources", `<p>Outdoors in the open, in °C.${any ? ` Range across ${any.n} models; differences in forecast sunshine matter a lot.` : ""} Calculated (Liljegren method), not measured: in a 10-day check against Singapore's sensors, the ECMWF-based figure averaged about 1.6° too hot around midday. The range can still be wrong, so don't rely on it as a safety alert. Levels are Singapore's, for long periods outdoors, not Malaysian limits. General information, not medical advice.</p><ul>${G.sources.map(([n, u]) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(n)}</a></li>`).join("")}</ul>`)}`;
 }
 let hourLimit = 24;
 function renderHourly(D) {
@@ -457,7 +522,7 @@ function renderHourly(D) {
     return `<div class="${cls}"><span class="t${isMidnight || n === 0 ? " day" : ""}">${esc(tl)}</span><span class="bar" style="background:${cond.c}"></span><span class="lbl${cond.k === "storm" ? " storm" : ""}">${esc(label)}</span><span class="val"><span class="pill"><i style="width:${w}%;background:${M.color(v)}"></i></span><b>${esc(fv)}</b></span></div>`;
   }).join("");
   const more = idx.length > hourLimit ? `<button class="btn wide more" id="moreHours" style="background:var(--card2)">Show 48 hours</button>` : "";
-  const note = `<p class="sub small" style="margin:10px 0 0">Models tend to bring afternoon storms a few hours early here; treat exact hours as approximate.${S.hourMetric === "prob" ? " Rain chance = share of the 51 ECMWF ensemble runs with at least 0.5 mm in that 3-hour block." : ""}${S.hourMetric === "storm" ? " Storm risk combines the model's thunderstorm code with atmospheric instability (CAPE). Lightning forecasts aren't available for Malaysia." : ""}</p>`;
+  const note = `<p class="sub small" style="margin:10px 0 0">Models tend to bring afternoon storms a few hours early here; treat exact hours as approximate.${S.hourMetric === "prob" ? " Rain chance = share of the 51 ECMWF ensemble runs with at least 0.5 mm in that 3-hour block." : ""}${S.hourMetric === "wbgt" ? " WBGT = estimated range across models for the hour starting at each time, outdoors in the open; the bar shows the middle value." : ""}${S.hourMetric === "storm" ? " Storm risk combines the model's thunderstorm code with atmospheric instability (CAPE). Lightning forecasts aren't available for Malaysia." : ""}</p>`;
   $("#timeline").innerHTML = rows + more + note;
   $("#hourSource").textContent = modelById(S.settings.model).name;
 }
@@ -469,7 +534,7 @@ function renderDays(D) {
   $("#days").innerHTML = d.time.map((t, i) => {
     const dt = parseLocal(t);
     const cond = condition(d.weather_code[i], (d.precipitation_sum[i] || 0) / Math.max(1, d.precipitation_hours?.[i] || 6), null, 1);
-    const prob = E?.[t]?.prob != null ? E[t].prob * 100 : d.precipitation_probability_max?.[i];
+    const { v: prob, label: probLabel } = dayRain(D, i);
     const mn = d.temperature_2m_min[i], mx = d.temperature_2m_max[i];
     const L = ((mn - lo) / (hi - lo || 1)) * 100, R = ((mx - lo) / (hi - lo || 1)) * 100;
     const name = i === 0 ? "Today" : fmtDay.format(dt);
@@ -479,7 +544,7 @@ function renderDays(D) {
     const kv = [
       [r1(d.precipitation_sum[i]) + " mm", "Rain total"],
       [d.precipitation_hours?.[i] != null ? r0(d.precipitation_hours[i]) + " h" : "–", "Hours of rain"],
-      [prob != null ? r0(prob) + "%" : "–", "Rain chance"],
+      [prob != null ? r0(prob) + "%" : "–", probLabel],
       [r0(d.apparent_temperature_max?.[i]) + "°", "Feels like max"],
       [r0(d.wind_speed_10m_max[i]) + " / " + r0(d.wind_gusts_10m_max[i]), "Wind / gust km/h"],
       [r0(d.uv_index_max?.[i]) + " " + uvName(d.uv_index_max?.[i]), "UV max"],
@@ -490,6 +555,7 @@ function renderDays(D) {
       <div class="detail"><p class="daytext">${esc(fmtDate.format(dt))}. ${esc(daySummary(D, i))} ${conf}</p><div class="kv">${kv.map(([b, s]) => `<div><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join("")}</div></div></div>`;
   }).join("");
   $("#daySource").textContent = modelById(S.settings.model).name;
+  $("#dayNote").textContent = E ? `% = share of the ${S.data.ens.members} ECMWF ensemble runs with at least ${C.rainDayMm} mm in the day (today: hours still to come). Not calibrated against local gauges.` : "% = Open-Meteo's chance of any rain; the ensemble didn't load.";
 }
 function confidenceBadge(spread) {
   if (spread == null) return "";
@@ -900,6 +966,9 @@ async function refresh() {
   $("#refreshBtn").classList.remove("spin");
 
   S.data.ens = R.ens.status === "fulfilled" ? ensembleStats(R.ens.value) : null;
+  S.data.models = R.models.status === "fulfilled" ? R.models.value : null;
+  S.data.wbgt = null;
+  try { S.data.wbgt = wbgtStats(S.data.models, loc); } catch (e) { console.error(e); }
 
   if (R.fc.status === "fulfilled") {
     const D = R.fc.value; S.data.fc = D;
@@ -913,11 +982,11 @@ async function refresh() {
       renderAll(cache.fc);
       $("#updated").textContent = "Offline · " + timeLabel(new Date(cache.t));
     }
+    try { renderWbgt(); } catch (e) { console.error(e); } // heat guidance shows even with no forecast
     toast("Couldn't load the forecast: " + R.fc.reason?.message + ". Showing what's saved, if anything.");
   }
   renderWarnings(R.warn.status === "fulfilled" ? R.warn.value : null);
   renderMetForecast(R.met.status === "fulfilled" ? R.met.value : null);
-  S.data.models = R.models.status === "fulfilled" ? R.models.value : null;
   if (S.view === "models") { renderModels(); renderEnsemble(); }
   renderAir(R.air.status === "fulfilled" ? R.air.value : null, R.waqi.status === "fulfilled" ? R.waqi.value : null);
   if (R.waqi.status === "rejected") $("#aqiTag").textContent = "WAQI: " + R.waqi.reason.message;
@@ -928,6 +997,7 @@ function renderAll(D) {
   try { renderNow(D); } catch (e) { console.error(e); }
   try { renderNext(D); } catch (e) { console.error(e); }
   try { renderHourly(D); } catch (e) { console.error(e); }
+  try { renderWbgt(); } catch (e) { console.error(e); }
   try { renderDays(D); } catch (e) { console.error(e); }
   try { renderSunMoon(D); } catch (e) { console.error(e); }
   const m = modelById(S.settings.model);
