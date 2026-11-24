@@ -217,3 +217,18 @@ table.grid thead th{color:var(--dim);font-weight:500}
 #wbgtCard details p{font-size:14px;color:var(--mute);margin:6px 0}
 #wbgtCard summary{padding:12px 0;min-height:44px;box-sizing:border-box;cursor:pointer;font-size:15px}
 .guide-urgent{background:#3a1216;border-left:3px solid #ff5a5a;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:15px;color:#ffd9d9}
+
+/* Heat stress beside the temperature */
+.now-text{flex:1}
+.now-top{display:flex;align-items:center;gap:16px}
+@media(max-width:374px){.now-top{flex-wrap:wrap;gap:8px}}
+.now-temp{flex:none}
+.now-heat{background:var(--card);border:0;border-left:3px solid var(--line);border-radius:12px;padding:8px 12px;min-height:44px;text-align:left;cursor:pointer;line-height:1.35}
+.now-heat[hidden]{display:none}
+.now-heat span,.now-heat em{display:block;font-size:13px;font-style:normal;color:var(--mute)}
+.now-heat b{display:block;font-size:17px;font-weight:600;white-space:nowrap}
+.now-heat em{font-weight:600}
+.now-heat.h0{border-left-color:var(--ok)}.now-heat.h0 em{color:var(--ok)}
+.now-heat.h1{border-left-color:var(--warn)}.now-heat.h1 em{color:var(--warn)}
+.now-heat.h2{border-left-color:var(--bad)}.now-heat.h2 em{color:var(--bad)}
+#wbgtCard{scroll-margin-top:calc(130px + var(--safe-t))}

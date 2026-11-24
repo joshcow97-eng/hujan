@@ -481,6 +481,15 @@ function renderWbgt() {
   const list = a => `<ul>${a.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
   const open = new Set($$("details[open]", box).map(d => d.dataset.k));
   const fold = (k, title, html) => `<details data-k="${k}"${open.has(k) ? " open" : ""}><summary>${esc(title)}</summary>${html}</details>`;
+  // Reading beside the temperature: this hour only, coloured by the top of the range.
+  const chip = $("#nowHeat");
+  chip.hidden = !cur;
+  if (cur) {
+    const i = C.wbgt.bands.findIndex(x => Math.round(cur.hi) < x[1]), band = wbgtBand(cur);
+    chip.className = "now-heat h" + i;
+    chip.setAttribute("aria-label", `Heat stress this hour, estimated WBGT ${wbgtRange(cur)}C, risk ${band}. Show guidance.`);
+    chip.innerHTML = `<span>Heat stress (est.)</span><b>WBGT ${esc(wbgtRange(cur))}</b><em>${esc(band)} risk</em>`;
+  }
   box.hidden = false;
   box.innerHTML = `<div class="card-head"><h2>Heat stress (WBGT)</h2><span class="tag">Estimate</span></div>
     ${any ? `<div class="kv">${cell(cur, "This hour")}${cell(rest, "Peak, rest of today")}${cell(tmr, "Peak tomorrow")}</div>` : `<p class="sub">The estimate isn't available right now. The guidance below still applies.</p>`}
@@ -1017,6 +1026,7 @@ $("#saveSettings").addEventListener("click", () => {
   store.set("settings", S.settings); closeSheets(); refresh();
 });
 $("#refreshBtn").addEventListener("click", () => refresh());
+$("#nowHeat").addEventListener("click", () => $("#wbgtCard").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
 $("#gpsBtn").addEventListener("click", () => useGPS(false));
 $("#searchInput").addEventListener("input", e => { clearTimeout(searchTimer); searchTimer = setTimeout(() => search(e.target.value), 300); });
 $("#searchForm").addEventListener("submit", e => { e.preventDefault(); search($("#searchInput").value); });
