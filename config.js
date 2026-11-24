@@ -60,16 +60,35 @@ window.HUJAN_CONFIG = {
         { name: "Moderate", range: "31° to below 33°", risk: "Higher risk of heat cramps, heat exhaustion and heat stroke.", act: ["Cut back on time outdoors", "Rest regularly in shade or indoors", "Drink more", "Watch for the warning signs below", "Skip extra layers; use a hat or umbrella"] },
         { name: "High", range: "33° or more", risk: "Highest band. The same illnesses are more likely.", act: ["Keep outdoor activity to a minimum and stay in shade where you can", "Take longer or more frequent breaks", "Drink more and watch for the warning signs below", "Cool down in breaks, such as water on arms and legs", "Wear thin, light-coloured clothing with a hat or umbrella"] }
       ],
-      groups: ["Older people", "Babies and children", "Pregnant women", "Anyone ill, recently recovered or with a long-term condition", "People newly arrived from a cooler climate", "Outdoor workers and people exercising in the heat"],
+      groups: ["Older people", "Babies and children, especially under 5", "Pregnant or breastfeeding women", "Anyone ill, recently recovered or with a long-term condition", "People newly arrived from a cooler climate", "Outdoor workers and people exercising in the heat"],
       early: ["Headache", "Tiredness", "Trouble concentrating", "Dizziness", "Muscle weakness or cramps", "Nausea"],
       urgent: "Confusion, slurred speech, fainting or a seizure",
       firstAid: ["Heat stroke: call 999, stay with the person, move them to a cool shaded place, remove outer clothing, and cool them fast with cold water, ice or wet cloths and moving air", "Heat exhaustion: move out of the heat, remove extra clothing, cool the head, face and neck, take frequent sips of cool water, and get medical care"],
       habits: ["Avoid the 11am to 4pm peak", "Limit strenuous activity", "Never leave children in a parked vehicle"],
-      work: ["From 32°: at least 10 minutes' rest every hour for heavy physical work", "From 33°: at least 15 minutes every hour, longer as WBGT rises", "Give people new to the heat at least 7 days to build up"],
-      workNote: "Singapore's Ministry of Manpower measures, for employers there. Malaysia's 2016 DOSH guideline is the local reference; its limits couldn't be read, so they aren't shown.",
+      /* DOSH Malaysia, Guidelines on Heat Stress Management at Workplace 2016, Tables 6 to 9 (screening values DOSH takes from ACGIH 2015).
+         Each row: share of the hour spent working, then [action limit, limit] for light, moderate, heavy and very heavy work; null = no value given. */
+      dosh: {
+        loads: [["Light", "sitting or standing with some arm work"], ["Moderate", "normal walking, moderate lifting"], ["Heavy", "shovelling, carrying, fast walking"], ["Very heavy", "intense work at a fast pace"]],
+        rows: [
+          ["75–100%", [28, 31], [25, 28], null, null],
+          ["50–75%", [28.5, 31], [26, 29], [24, 27.5], null],
+          ["25–50%", [29.5, 32], [27, 30], [25.5, 29], [24.5, 28]],
+          ["0–25%", [30, 32.5], [29, 31.5], [28, 30.5], [27, 30]]
+        ],
+        actions: [
+          ["Low (below the action limit)", ["Carry on working and keep monitoring"]],
+          ["Medium (action limit up to the limit)", ["Regular drinking water", "Training and information", "Work in pairs or groups", "First aid and an emergency plan", "Health screening", "A cool place to rest"]],
+          ["High (above the limit)", ["All of the above, plus a work-rest routine", "Cut the physical load, for example with mechanical aids", "Shade, ventilation or cooling", "Supervision and building up to the heat"]]
+        ],
+        acclimatise: "Getting used to the heat generally takes 7 to 14 days. DOSH advises about half the normal workload on a new worker's first day.",
+        note: "DOSH's limits are for measured WBGT, adjusted for clothing (0 for normal work clothes), and assume healthy, well-hydrated workers used to the heat. This app's figure is an estimate, so don't use it to show compliance. A dash means DOSH gives no screening value."
+      },
+      workSg: "Singapore, for comparison: at least 10 minutes' rest an hour for heavy physical work from 32°, and at least 15 from 33°.",
       sources: [
         ["Levels and higher-risk groups: NEA Singapore, Jan 2026", "https://www.weather.gov.sg/wp-content/uploads/2026/04/Manage-HeatStress-Eng-2026.pdf"],
-        ["Outdoor work: MOM Singapore", "https://www.mom.gov.sg/heat-stress-measures-for-outdoor-work"],
+        ["Work limits and heat stroke first aid: DOSH Malaysia, 2016", "https://dosh.gov.my/wp-content/uploads/2026/03/ve_gl_heat-stress-management-at-wplace-2016.pdf"],
+        ["Higher-risk groups: Malaysia's Ministry of Health heatwave guide", "https://infosihat.moh.gov.my/images/media_sihat/garis_panduan/pdf/Buku%20Gelombang%20Haba.pdf"],
+        ["Singapore outdoor work: MOM", "https://www.mom.gov.sg/heat-stress-measures-for-outdoor-work"],
         ["Early signs and daily advice: Malaysia's Ministry of Health, via Malay Mail, 25 Mar 2026", "https://www.malaymail.com/news/malaysia/2026/03/25/moh-tells-public-to-take-precautions-as-malaysia-records-more-heatrelated-illnesses-amid-prolonged-hot-weather/213801"],
         ["Urgent signs and first aid: NIOSH (US)", "https://www.cdc.gov/niosh/heat-stress/about/illnesses.html"],
         ["Outdoor workers and parked vehicles: WHO", "https://www.who.int/news-room/fact-sheets/detail/climate-change-heat-and-health"],

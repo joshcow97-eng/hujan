@@ -467,6 +467,12 @@ function wbgtStats(models, loc) {
 const wbgtRange = r => r == null ? "–" : r0(r.lo) === r0(r.hi) ? r0(r.lo) + "°" : r0(r.lo) + "–" + r0(r.hi) + "°";
 // Band from the rounded ends shown, so the label always matches the numbers on screen.
 const wbgtBand = r => { const b = v => C.wbgt.bands.find(x => Math.round(v) < x[1])[0], a = b(r.lo), z = b(r.hi); return a === z ? a : a + " to " + z; };
+// DOSH 2016 screening for a WBGT range. Uses the wider of the exact and displayed values, and counts a tie as the higher risk.
+function doshRisk(r, pair) {
+  const f = v => v < pair[0] ? "Low" : v < pair[1] ? "Medium" : "High";
+  const a = f(Math.min(r.lo, Math.round(r.lo))), z = f(Math.max(r.hi, Math.round(r.hi)));
+  return a === z ? a : a + " to " + z;
+}
 function renderWbgt() {
   const box = $("#wbgtCard"), E = S.data.wbgt, G = C.wbgt.guide;
   const now = Date.now(), dayOf = ms => new Date(ms).toLocaleDateString("en-CA", { timeZone: C.tz });
@@ -487,21 +493,27 @@ function renderWbgt() {
   if (cur) {
     const i = C.wbgt.bands.findIndex(x => Math.round(cur.hi) < x[1]), band = wbgtBand(cur);
     chip.className = "now-heat h" + i;
-    chip.setAttribute("aria-label", `Heat stress this hour, estimated WBGT ${wbgtRange(cur)}C, risk ${band}. Show guidance.`);
-    chip.innerHTML = `<span>Heat stress (est.)</span><b>WBGT ${esc(wbgtRange(cur))}</b><em>${esc(band)} risk</em>`;
+    chip.setAttribute("aria-label", `Heat stress this hour, estimated WBGT ${wbgtRange(cur)}C, risk for the general public ${band}. Show guidance.`);
+    chip.innerHTML = `<span>Heat stress (est.)</span><b>WBGT ${esc(wbgtRange(cur))}</b><em>${esc(band)}, general public</em>`;
   }
   box.hidden = false;
   box.innerHTML = `<div class="card-head"><h2>Heat stress (WBGT)</h2><span class="tag">Estimate</span></div>
     ${any ? `<div class="kv">${cell(cur, "This hour")}${cell(rest, "Peak, rest of today")}${cell(tmr, "Peak tomorrow")}</div>` : `<p class="sub">The estimate isn't available right now. The guidance below still applies.</p>`}
     <h3 class="guide-h">Risks and guidelines</h3>
-    ${lv ? `<p class="guide-now"><b>Rest of today, top of the range: ${esc(lv.name)}</b><br>${esc(lv.risk)}</p>${list(lv.act)}` : ""}
+    ${lv ? `<p class="guide-now"><b>General public, rest of today, top of the range: ${esc(lv.name)}</b><br>${esc(lv.risk)}</p>${list(lv.act)}` : ""}
+    ${cur ? `<p class="guide-work"><b>Working outdoors this hour (DOSH screening, near-continuous work)</b><br>Light work: ${esc(doshRisk(cur, G.dosh.rows[0][1]))} · Moderate work: ${esc(doshRisk(cur, G.dosh.rows[0][2]))}<br>Heavy work: DOSH gives no value for continuous work</p>` : ""}
     <p class="guide-urgent"><b>${esc(G.urgent)}</b> can mean heat stroke. Call <b>999</b> and cool the person while you wait.</p>
     ${fold("levels", "What to do at each level", G.levels.map(l => `<p><b>${esc(l.name)}, ${esc(l.range)}</b><br>${esc(l.risk)}</p>${list(l.act)}`).join(""))}
     ${fold("groups", "Who is at higher risk", list(G.groups))}
     ${fold("signs", "Warning signs and first aid", `<p><b>Early signs</b></p>${list(G.early)}<p><b>Urgent: call 999</b></p>${list([G.urgent])}<p><b>First aid</b></p>${list(G.firstAid)}`)}
     ${fold("habits", "Everyday precautions", list(G.habits))}
-    ${fold("work", "Heavy outdoor work", list(G.work) + `<p>${esc(G.workNote)}</p>`)}
-    ${fold("about", "About this estimate and sources", `<p>Outdoors in the open, in °C.${any ? ` Range across ${any.n} models; differences in forecast sunshine matter a lot.` : ""} Calculated (Liljegren method), not measured: in a 10-day check against Singapore's sensors, the ECMWF-based figure averaged about 1.6° too hot around midday. The range can still be wrong, so don't rely on it as a safety alert. Levels are Singapore's, for long periods outdoors, not Malaysian limits. General information, not medical advice.</p><ul>${G.sources.map(([n, u]) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(n)}</a></li>`).join("")}</ul>`)}`;
+    ${fold("work", "Work limits (DOSH Malaysia, 2016)", `
+      <div class="dosh"><table><thead><tr><th>Working time</th>${G.dosh.loads.map(l => `<th>${esc(l[0])}</th>`).join("")}</tr></thead><tbody>${G.dosh.rows.map(w => `<tr><th>${esc(w[0])}</th>${w.slice(1).map(p => `<td>${p ? esc(p[0]) + "<br><b>" + esc(p[1]) + "</b>" : "–"}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+      <p>Top: action limit. Bottom, bold: limit. In °C WBGT, by share of each hour spent working.</p>
+      ${list(G.dosh.loads.map(l => l[0] + ": " + l[1]))}
+      ${G.dosh.actions.map(([n, a]) => `<p><b>${esc(n)}</b></p>${list(a)}`).join("")}
+      <p>${esc(G.dosh.acclimatise)}</p><p>${esc(G.dosh.note)}</p><p>${esc(G.workSg)}</p>`)}
+    ${fold("about", "About this estimate and sources", `<p>Outdoors in the open, in °C.${any ? ` Range across ${any.n} models; differences in forecast sunshine matter a lot.` : ""} Calculated (Liljegren method), not measured: in a 10-day check against Singapore's sensors, the ECMWF-based figure averaged about 1.6° too hot around midday. The range can still be wrong, so don't rely on it as a safety alert. Low, Moderate and High are Singapore's public levels for long periods outdoors. Malaysia's public hot-weather alerts use air temperature, not WBGT; its WBGT limits are DOSH's, for work. No newer DOSH heat guideline than 2016 was found on 24 Nov 2026. General information, not medical advice.</p><ul>${G.sources.map(([n, u]) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(n)}</a></li>`).join("")}</ul>`)}`;
 }
 let hourLimit = 24;
 function renderHourly(D) {

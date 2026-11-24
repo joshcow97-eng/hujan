@@ -232,3 +232,13 @@ table.grid thead th{color:var(--dim);font-weight:500}
 .now-heat.h1{border-left-color:var(--warn)}.now-heat.h1 em{color:var(--warn)}
 .now-heat.h2{border-left-color:var(--bad)}.now-heat.h2 em{color:var(--bad)}
 #wbgtCard{scroll-margin-top:calc(130px + var(--safe-t))}
+
+/* DOSH work limits */
+.guide-work{background:var(--card2);border-radius:8px;padding:10px 12px;margin:10px 0;font-size:14px;color:var(--mute)}
+.guide-work b{color:var(--ink)}
+.dosh{overflow-x:auto}
+.dosh table{border-collapse:collapse;width:100%;font-size:13px}
+.dosh th,.dosh td{padding:6px 2px;border-bottom:1px solid var(--line);text-align:center;font-weight:400}
+.dosh thead th{color:var(--mute);font-weight:600}
+.dosh tbody th{text-align:left;white-space:nowrap}
+.dosh td{white-space:nowrap}
