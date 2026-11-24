@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hujan">
+<meta name="description" content="Multi-model weather, rain radar and air quality for Malaysia">
+<title>Hujan · Malaysia weather</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="anonymous">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <button class="loc" id="locBtn" aria-label="Change location">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
+    <span id="locName">Locating…</span>
+  </button>
+  <span class="updated" id="updated"></span>
+  <button class="icon-btn" id="refreshBtn" aria-label="Refresh"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.2L13 11h7V4z"/></svg></button>
+  <button class="icon-btn" id="settingsBtn" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.8a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.8a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg></button>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-view="forecast" aria-selected="true">Forecast</button>
+  <button role="tab" data-view="radar">Radar</button>
+  <button role="tab" data-view="models">Models</button>
+  <button role="tab" data-view="air">Air</button>
+</nav>
+
+<main>
+  <div id="banner" class="banner" hidden></div>
+
+  <!-- FORECAST -->
+  <section class="view" id="view-forecast">
+    <div class="now">
+      <div class="now-main">
+        <div class="now-icon" id="nowIcon"></div>
+        <div>
+          <div class="now-temp" id="nowTemp">--°</div>
+          <div class="now-cond" id="nowCond">&nbsp;</div>
+        </div>
+      </div>
+      <p class="summary" id="summary">Loading forecast…</p>
+      <div class="now-grid" id="nowGrid"></div>
+    </div>
+
+    <div id="warnings"></div>
+
+    <div class="card">
+      <div class="card-head"><h2>Next 2 hours</h2><span class="tag" id="nextSource"></span></div>
+      <p class="sub" id="nextSummary"></p>
+      <div class="fig short"><svg id="nextChart" role="img" aria-label="Rain intensity over the next two hours"></svg></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Next 48 hours</h2><span class="tag" id="hourSource"></span></div>
+      <div class="chips" id="hourMetric" role="radiogroup" aria-label="Hourly metric"></div>
+      <div class="timeline" id="timeline"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Next 14 days</h2><span class="tag" id="daySource"></span></div>
+      <div class="days" id="days"></div>
+    </div>
+
+    <div class="card" id="metFc" hidden></div>
+
+    <div class="card sunmoon" id="sunmoon"></div>
+    <p class="foot" id="footForecast"></p>
+  </section>
+
+  <!-- RADAR -->
+  <section class="view" id="view-radar" hidden>
+    <div class="card flush">
+      <div id="map"></div>
+      <div class="radar-bar">
+        <button class="icon-btn" id="radarPlay" aria-label="Play radar loop"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="playPath" d="M8 5v14l11-7z"/></svg></button>
+        <input type="range" id="radarSlider" min="0" max="0" value="0" aria-label="Radar frame">
+        <span id="radarTime" class="radar-time">--:--</span>
+      </div>
+      <div class="legend"><span>Light</span><i></i><span>Heavy</span></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>MET Malaysia radar</h2><span class="tag">Official</span></div>
+      <p class="sub">The national radar composite, straight from MET Malaysia. Tap to open the source page.</p>
+      <div id="metRadar"></div>
+    </div>
+    <p class="foot" id="footRadar"></p>
+  </section>
+
+  <!-- MODELS -->
+  <section class="view" id="view-models" hidden>
+    <div class="card">
+      <div class="card-head"><h2>Model agreement</h2><span class="tag" id="agreeTag"></span></div>
+      <p class="sub" id="agreeText"></p>
+      <div class="chips" id="modelMetric" role="radiogroup" aria-label="Model chart metric"></div>
+      <div class="fig"><svg id="modelChart" role="img" aria-label="Model comparison chart"></svg></div>
+      <div class="model-legend" id="modelLegend"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Daily rain by model</h2><span class="tag">mm per day</span></div>
+      <div class="scroll"><table class="grid" id="modelTable"></table></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Ensemble confidence</h2><span class="tag" id="ensTag"></span></div>
+      <p class="sub" id="ensText"></p>
+      <div class="fig"><svg id="ensChart" role="img" aria-label="Ensemble spread chart"></svg></div>
+    </div>
+    <div class="card about" id="modelAbout"></div>
+  </section>
+
+  <!-- AIR -->
+  <section class="view" id="view-air" hidden>
+    <div class="card">
+      <div class="card-head"><h2>Air Pollutant Index</h2><span class="tag">DOE official</span></div>
+      <div id="doeBox"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>US AQI and particles</h2><span class="tag" id="aqiTag"></span></div>
+      <p class="sub">US AQI uses a different scale and averaging from Malaysia's API. It usually reads higher. Don't compare the two numbers directly.</p>
+      <div id="aqiBox"></div>
+      <div class="fig short"><svg id="aqiChart" role="img" aria-label="PM2.5 forecast"></svg></div>
+    </div>
+    <p class="foot" id="footAir"></p>
+  </section>
+</main>
+
+<!-- Location sheet -->
+<div class="sheet" id="locSheet" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="locTitle">
+    <div class="sheet-head"><h2 id="locTitle">Location</h2><button class="icon-btn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2"/></svg></button></div>
+    <button class="btn wide" id="gpsBtn">Use my current location</button>
+    <form id="searchForm" class="search">
+      <input id="searchInput" type="search" placeholder="Search a place in Malaysia" autocomplete="off" aria-label="Search places">
+    </form>
+    <ul class="results" id="results"></ul>
+    <h3 class="mini">Recent</h3>
+    <ul class="results" id="recent"></ul>
+  </div>
+</div>
+
+<!-- Settings sheet -->
+<div class="sheet" id="setSheet" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+    <div class="sheet-head"><h2 id="setTitle">Settings</h2><button class="icon-btn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2"/></svg></button></div>
+    <label class="field">Headline model
+      <select id="setModel"></select>
+    </label>
+    <label class="field">WAQI token (optional, for US AQI from DOE stations)
+      <input id="setWaqi" type="text" placeholder="Free from aqicn.org/data-platform/token" autocomplete="off">
+    </label>
+    <label class="field">Data proxy URL (optional, for official DOE API readings)
+      <input id="setProxy" type="url" placeholder="https://your-worker.workers.dev" autocomplete="off">
+    </label>
+    <button class="btn wide" id="saveSettings">Save</button>
+    <p class="sub small">Settings stay on this device only.</p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin="anonymous"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
